@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LaunchWhitely — Feature flags. 99.1% pure.</title>
+  <meta name="description" content="Self-hostable feature-flag server. Single Rust binary, SQLite-backed, SSE real-time propagation. No SaaS, no agents, no per-seat pricing." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <!-- block theme flash: dark is default, only switch to light if user chose it -->
+  <script>
+    (function(){
+      if(localStorage.getItem('lw-theme')==='light')
+        document.documentElement.setAttribute('data-theme','light');
+    }());
+  </script>
+  <style>
+    /* ═══════════════════════ TOKENS ═══════════════════════ */
+    :root {
+      --bg:            #050505;
+      --bg-s:          #0a0a0a;
+      --bg-card:       #0f0f0f;
+      --bg-code:       #030303;
+      --fg:            #e8e8e8;
+      --fg-mid:        #777777;
+      --fg-dim:        #3a3a3a;
+      --border:        #181818;
+      --border-mid:    #262626;
+      --accent:        #00ff88;
+      --accent-d:      rgba(0,255,136,0.08);
+      --accent-b:      rgba(0,255,136,0.22);
+      --glow:          0 0 30px rgba(0,255,136,0.22), 0 0 80px rgba(0,255,136,0.07);
+      --glow-sm:       0 0 12px rgba(0,255,136,0.18);
+
+      --t-rust:        #e8a07a;
+      --t-rust-bg:     rgba(232,160,122,0.08);
+      --t-rust-b:      rgba(232,160,122,0.2);
+      --t-npm:         #ff6b6b;
+      --t-npm-bg:      rgba(255,107,107,0.07);
+      --t-npm-b:       rgba(255,107,107,0.18);
+
+      --fs-hero:  clamp(3.2rem, 9vw, 6.5rem);
+      --fs-h2:    clamp(1.7rem, 3.5vw, 2.5rem);
+      --fs-h3:    1.15rem;
+      --fs-body:  1rem;
+      --fs-sm:    0.875rem;
+      --fs-xs:    0.75rem;
+      --lh-tight: 1.04;
+      --lh-body:  1.65;
+
+      --max-w:      800px;
+      --max-w-wide: 1060px;
+      --section-v:  6.5rem;
+    }
+
+    [data-theme="light"] {
+      --bg:         #f4f3ee;
+      --bg-s:       #eceae2;
+      --bg-card:    #ffffff;
+      --bg-code:    #ededea;
+      --fg:         #0c0c0c;
+      --fg-mid:     #555555;
+      --fg-dim:     #aaaaaa;
+      --border:     #e0dfd6;
+      --border-mid: #c8c7be;
+      --accent:     #007a40;
+      --accent-d:   rgba(0,122,64,0.07);
+      --accent-b:   rgba(0,122,64,0.25);
+      --glow:       0 0 20px rgba(0,122,64,0.14);
+      --glow-sm:    0 0 8px rgba(0,122,64,0.14);
+
+      --t-rust:    #9c4a1e;
+      --t-rust-bg: rgba(156,74,30,0.07);
+      --t-rust-b:  rgba(156,74,30,0.18);
+      --t-npm:     #cc2a2a;
+      --t-npm-bg:  rgba(204,42,42,0.06);
+      --t-npm-b:   rgba(204,42,42,0.16);
+    }
+
+    /* ═══════════════════════ RESET ═══════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body {
+      font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: var(--lh-body);
+      -webkit-font-smoothing: antialiased;
+      transition: background-color .18s, color .18s;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+    a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+    a:hover { opacity: .6; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    button { font-family: inherit; font-size: inherit; cursor: pointer; border: none; background: transparent; color: inherit; appearance: none; -webkit-appearance: none; }
+    code, pre { font-family: inherit; }
+    ul, ol { list-style: none; }
+
+    /* ═══════════════════════ LAYOUT ═══════════════════════ */
+    .wrap      { width: 100%; max-width: var(--max-w);      margin-inline: auto; padding-inline: 1.5rem; }
+    .wrap--wide{ width: 100%; max-width: var(--max-w-wide); margin-inline: auto; padding-inline: 1.5rem; }
+    .section   { padding-block: var(--section-v); border-top: 1px solid var(--border); }
+    .section-head { margin-bottom: 2.75rem; }
+
+    /* ═══════════════════════ TYPE ═══════════════════════ */
+    .eyebrow {
+      display: inline-block;
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: .65rem;
+    }
+    .section-title {
+      font-size: var(--fs-h2);
+      font-weight: 800;
+      letter-spacing: -.028em;
+      line-height: var(--lh-tight);
+    }
+    .section-sub {
+      margin-top: .75rem;
+      font-size: var(--fs-sm);
+      color: var(--fg-mid);
+      max-width: 540px;
+      line-height: var(--lh-body);
+    }
+
+    /* ═══════════════════════ ANIMATIONS ═══════════════════════ */
+    @keyframes grad-pan {
+      0%,100% { background-position: 0% 50%; }
+      50%      { background-position: 100% 50%; }
+    }
+    @keyframes blink-cur {
+      0%,49% { opacity: 1; } 50%,100% { opacity: 0; }
+    }
+    @keyframes float-up {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes glow-breathe {
+      0%,100% { opacity: 1; } 50% { opacity: .55; }
+    }
+    @keyframes count-up {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    /* scroll reveal */
+    .rv { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s ease; }
+    .rv.in { opacity: 1; transform: none; }
+    .rv-d1 { transition-delay: .06s; }
+    .rv-d2 { transition-delay: .12s; }
+    .rv-d3 { transition-delay: .18s; }
+    .rv-d4 { transition-delay: .24s; }
+    .rv-d5 { transition-delay: .30s; }
+    .rv-d6 { transition-delay: .36s; }
+
+    /* ═══════════════════════ NAV ═══════════════════════ */
+    .nav {
+      position: sticky; top: 0; z-index: 200;
+      background: rgba(5,5,5,.86);
+      backdrop-filter: blur(18px) saturate(160%);
+      -webkit-backdrop-filter: blur(18px) saturate(160%);
+      border-bottom: 1px solid var(--border);
+      transition: background .18s;
+    }
+    [data-theme="light"] .nav { background: rgba(244,243,238,.88); }
+    .nav-inner {
+      max-width: var(--max-w-wide); margin-inline: auto; padding-inline: 1.5rem;
+      height: 3.6rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+
+    .wordmark {
+      display: flex; align-items: center; gap: .55em;
+      font-weight: 800; font-size: var(--fs-sm); letter-spacing: .025em;
+      text-decoration: none; color: var(--fg); flex-shrink: 0;
+    }
+    .wordmark:hover { opacity: .7; }
+    .wm-flag {
+      display: inline-block; width: 1.7em; height: .95em;
+      border: 1.5px solid var(--accent); position: relative;
+      vertical-align: middle; flex-shrink: 0;
+    }
+    .wm-knob {
+      position: absolute; top: 2px; left: 2px; bottom: 2px;
+      width: calc(.95em - 6px);
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+      transition: transform .15s;
+    }
+    .wm-flag[data-on="true"] .wm-knob { transform: translateX(calc(.75em)); }
+
+    .nav-right { display: flex; align-items: center; gap: .85rem; }
+
+    .nav-link {
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      text-decoration: none; color: var(--fg-mid); transition: color .12s;
+    }
+    .nav-link:hover { color: var(--accent); opacity: 1; }
+
+    .nav-pill {
+      display: inline-flex; align-items: center; gap: .3em;
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      text-decoration: none; color: var(--fg-mid);
+      border: 1px solid var(--border-mid); padding: .3em .65em;
+      transition: color .12s, border-color .12s, box-shadow .12s;
+    }
+    .nav-pill:hover { color: var(--accent); border-color: var(--accent-b); box-shadow: var(--glow-sm); opacity: 1; }
+
+    .theme-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 2.1rem; height: 2.1rem;
+      border: 1px solid var(--border-mid); color: var(--fg-mid);
+      font-size: .95rem;
+      transition: color .12s, border-color .12s, box-shadow .12s;
+      flex-shrink: 0;
+    }
+    .theme-btn:hover { color: var(--accent); border-color: var(--accent-b); box-shadow: var(--glow-sm); }
+
+    /* ═══════════════════════ HERO ═══════════════════════ */
+    .hero {
+      position: relative; overflow: hidden;
+      min-height: 93vh;
+      display: flex; align-items: center;
+      padding-block: 5rem;
+    }
+
+    /* grid bg */
+    .hero-grid {
+      position: absolute; inset: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(0,255,136,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,136,.035) 1px, transparent 1px);
+      background-size: 52px 52px;
+      mask-image: radial-gradient(ellipse 110% 80% at 50% 25%, black 0%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse 110% 80% at 50% 25%, black 0%, transparent 75%);
+    }
+    [data-theme="light"] .hero-grid {
+      background-image:
+        linear-gradient(rgba(0,122,64,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,122,64,.06) 1px, transparent 1px);
+    }
+    .hero-glow {
+      position: absolute; top: -15%; left: 50%; transform: translateX(-50%);
+      width: 1000px; height: 700px; pointer-events: none;
+      background: radial-gradient(ellipse, rgba(0,255,136,.045) 0%, transparent 65%);
+    }
+    [data-theme="light"] .hero-glow {
+      background: radial-gradient(ellipse, rgba(0,122,64,.055) 0%, transparent 65%);
+    }
+
+    .hero-content { position: relative; z-index: 1; }
+
+    .hero-stamp {
+      display: inline-flex; align-items: center; gap: .55em;
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--accent); border: 1px solid var(--accent-b); padding: .38em .8em;
+      margin-bottom: 1.8rem;
+      animation: float-up .55s ease both;
+    }
+    .live-dot {
+      display: inline-block; width: .5em; height: .5em; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 8px var(--accent);
+      animation: glow-breathe 2s ease-in-out infinite;
+    }
+
+    .hero-title {
+      font-size: var(--fs-hero);
+      font-weight: 800;
+      line-height: var(--lh-tight);
+      letter-spacing: -.04em;
+      margin-bottom: 1.5rem;
+      animation: float-up .55s .08s ease both;
+    }
+    .hero-title .hl {
+      background: linear-gradient(120deg, var(--fg) 0%, var(--accent) 42%, #7c3aed 72%, var(--fg) 100%);
+      background-size: 260% 260%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: grad-pan 5s ease-in-out infinite;
+    }
+
+    .hero-sub {
+      font-size: var(--fs-sm); color: var(--fg-mid);
+      max-width: 530px; line-height: var(--lh-body);
+      margin-bottom: 2.25rem;
+      animation: float-up .55s .16s ease both;
+    }
+
+    /* stat pills */
+    .hero-stats {
+      display: flex; flex-wrap: wrap; gap: 0;
+      border: 1px solid var(--border-mid); width: fit-content;
+      margin-bottom: 2.25rem;
+      animation: float-up .55s .22s ease both;
+    }
+    .stat-pill {
+      padding: .65em 1.3em;
+      border-right: 1px solid var(--border-mid);
+      text-align: center;
+    }
+    .stat-pill:last-child { border-right: none; }
+    .stat-num { font-size: 1.25rem; font-weight: 800; color: var(--accent); line-height: 1; letter-spacing: -.02em; display: block; }
+    .stat-lbl { font-size: var(--fs-xs); color: var(--fg-mid); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+
+    /* install command */
+    .hero-cmd {
+      display: flex; align-items: center; gap: 0;
+      background: var(--bg-code); border: 1px solid var(--border-mid);
+      max-width: 490px; margin-bottom: 1.5rem;
+      animation: float-up .55s .28s ease both;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .hero-cmd:hover { border-color: var(--accent-b); box-shadow: var(--glow-sm); }
+    .hero-cmd code {
+      flex: 1; padding: .85em 1.1em;
+      font-size: var(--fs-sm); color: var(--accent);
+    }
+    .hero-cmd .p { color: var(--fg-dim); margin-right: .5em; }
+    .hero-cmd-copy {
+      padding: .85em 1.1em;
+      border-left: 1px solid var(--border-mid);
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--fg-mid); white-space: nowrap;
+      transition: color .1s, border-color .1s;
+    }
+    .hero-cmd-copy:hover { color: var(--accent); border-left-color: var(--accent-b); }
+
+    /* actions */
+    .hero-actions {
+      display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+      animation: float-up .55s .34s ease both;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: .35em;
+      font-family: inherit; font-size: var(--fs-xs); font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase; text-decoration: none;
+      padding: .65em 1.3em;
+      border: 1.5px solid var(--fg); color: var(--fg); background: transparent;
+      cursor: pointer; white-space: nowrap;
+      transition: background .12s, color .12s, box-shadow .12s, border-color .12s;
+    }
+    .btn:hover { background: var(--fg); color: var(--bg); opacity: 1; }
+    .btn--accent { border-color: var(--accent); color: var(--accent); box-shadow: var(--glow-sm); }
+    .btn--accent:hover { background: var(--accent); color: var(--bg); box-shadow: var(--glow); }
+    .btn--ghost { border-color: var(--border-mid); color: var(--fg-mid); box-shadow: none; }
+    .btn--ghost:hover { border-color: var(--fg); background: var(--fg); color: var(--bg); }
+
+    /* demo toggle */
+    .hero-demo {
+      margin-top: 3rem;
+      display: inline-flex; align-items: center; gap: 1.1rem;
+      padding: .9rem 1.3rem;
+      border: 1px solid var(--border); background: var(--bg-s);
+      animation: float-up .55s .4s ease both;
+      transition: border-color .15s;
+    }
+    .hero-demo:hover { border-color: var(--border-mid); }
+
+    .flag-sw {
+      display: inline-block; width: 2.5em; height: 1.35em;
+      border: 2px solid var(--fg-mid); position: relative;
+      cursor: pointer; flex-shrink: 0;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .flag-sw[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 10px rgba(0,255,136,.28); }
+    .flag-knob {
+      position: absolute; top: 2px; left: 2px; bottom: 2px;
+      width: calc(1.35em - 8px);
+      background: var(--fg-mid);
+      transition: transform .15s, background .15s;
+    }
+    .flag-sw[aria-checked="true"] .flag-knob {
+      background: var(--accent); transform: translateX(1.15em);
+      box-shadow: 0 0 6px var(--accent);
+    }
+    .demo-key { font-size: var(--fs-xs); letter-spacing: .1em; text-transform: uppercase; color: var(--fg-dim); }
+    .demo-val { font-size: var(--fs-sm); font-weight: 700; margin-top: .15em; }
+    .demo-val.on  { color: var(--accent); }
+    .demo-val.off { color: var(--fg-mid); }
+    .demo-hint { font-size: var(--fs-xs); color: var(--fg-dim); letter-spacing: .04em; }
+
+    /* ═══════════════════════ MANIFESTO ═══════════════════════ */
+    .manifesto-body {
+      display: flex; flex-direction: column; gap: 1.25rem; max-width: 640px;
+    }
+    .manifesto-body p { font-size: var(--fs-sm); color: var(--fg-mid); line-height: var(--lh-body); }
+    .manifesto-body strong { color: var(--fg); font-weight: 700; }
+    .manifesto-quote {
+      margin-top: 1rem;
+      padding: 1.25rem 1.5rem;
+      border-left: 3px solid var(--accent);
+      background: var(--accent-d);
+      font-size: var(--fs-sm); font-weight: 700;
+      color: var(--fg);
+      letter-spacing: -.01em;
+    }
+
+    /* ═══════════════════════ BIG STATS ═══════════════════════ */
+    .stats-band {
+      padding-block: 3.5rem;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-s);
+    }
+    .stats-band-inner {
+      max-width: var(--max-w-wide); margin-inline: auto; padding-inline: 1.5rem;
+      display: grid; grid-template-columns: repeat(4, 1fr);
+    }
+    .big-stat {
+      padding: 1.5rem 2rem;
+      border-right: 1px solid var(--border);
+      text-align: center;
+    }
+    .big-stat:last-child { border-right: none; }
+    .big-num {
+      font-size: clamp(2.8rem,5vw,4rem);
+      font-weight: 800; letter-spacing: -.04em;
+      line-height: 1; display: block;
+      color: var(--accent);
+    }
+    .big-lbl {
+      margin-top: .4rem;
+      font-size: var(--fs-xs); letter-spacing: .14em; text-transform: uppercase;
+      color: var(--fg-mid);
+    }
+    @media (max-width: 640px) {
+      .stats-band-inner { grid-template-columns: 1fr 1fr; }
+      .big-stat:nth-child(2) { border-right: none; }
+      .big-stat:nth-child(3),.big-stat:nth-child(4) { border-top: 1px solid var(--border); }
+    }
+
+    /* ═══════════════════════ FEATURES GRID ═══════════════════════ */
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 1px; background: var(--border);
+      border: 1px solid var(--border);
+    }
+    @media (max-width: 740px)  { .feat-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 480px)  { .feat-grid { grid-template-columns: 1fr; } }
+    .feat-card {
+      background: var(--bg);
+      padding: 1.85rem 1.75rem;
+      transition: background .15s;
+    }
+    .feat-card:hover { background: var(--bg-card); }
+    .feat-icon { font-size: 1.3rem; margin-bottom: .9rem; display: block; line-height: 1; }
+    .feat-title { font-size: var(--fs-sm); font-weight: 800; letter-spacing: -.01em; margin-bottom: .45rem; }
+    .feat-body  { font-size: var(--fs-xs); color: var(--fg-mid); line-height: 1.7; }
+
+    /* ═══════════════════════ HOW IT WORKS ═══════════════════════ */
+    .tech-list { }
+    .tech-item {
+      display: grid;
+      grid-template-columns: minmax(9.5rem,1fr) 2.5fr;
+      gap: 1.5rem; padding-block: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .tech-item:last-child { border-bottom: 1px solid var(--border); }
+    .tech-term { font-size: var(--fs-sm); font-weight: 800; color: var(--accent); }
+    .tech-def  { font-size: var(--fs-sm); color: var(--fg-mid); line-height: var(--lh-body); }
+    @media (max-width: 520px) { .tech-item { grid-template-columns: 1fr; gap: .3rem; } }
+
+    /* ═══════════════════════ PACKAGE CARDS ═══════════════════════ */
+    .pkg-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 1px; background: var(--border);
+      border: 1px solid var(--border); margin-bottom: 2.25rem;
+    }
+    @media (max-width: 560px) { .pkg-grid { grid-template-columns: 1fr; } }
+    .pkg-card { background: var(--bg-card); padding: 1.5rem 1.75rem; }
+    .pkg-badge {
+      display: inline-flex; align-items: center; gap: .4em;
+      font-size: var(--fs-xs); font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+      padding: .3em .7em; margin-bottom: 1.1rem;
+    }
+    .pkg-badge--cargo { color: var(--t-rust); background: var(--t-rust-bg); border: 1px solid var(--t-rust-b); }
+    .pkg-badge--npm   { color: var(--t-npm);  background: var(--t-npm-bg);  border: 1px solid var(--t-npm-b); }
+    .pkg-name { font-size: 1.05rem; font-weight: 800; letter-spacing: -.01em; margin-bottom: .55rem; }
+    .pkg-meta {
+      font-size: var(--fs-xs); color: var(--fg-mid);
+      display: flex; flex-wrap: wrap; gap: .35em 1em; margin-bottom: 1.1rem;
+    }
+    .pkg-meta .tag { color: var(--accent); font-weight: 700; }
+    .pkg-tags { display: flex; flex-wrap: wrap; gap: .4em; margin-bottom: 1.1rem; }
+    .pkg-tag {
+      font-size: var(--fs-xs); letter-spacing: .06em;
+      padding: .2em .55em;
+      border: 1px solid var(--border-mid); color: var(--fg-dim);
+    }
+    .pkg-link {
+      display: inline-flex; align-items: center; gap: .3em;
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--fg-mid); text-decoration: none;
+      border: 1px solid var(--border-mid); padding: .35em .75em;
+      transition: color .12s, border-color .12s, box-shadow .12s;
+      margin-right: .5rem; margin-top: .25rem;
+    }
+    .pkg-link:hover { color: var(--accent); border-color: var(--accent-b); box-shadow: var(--glow-sm); opacity: 1; }
+
+    /* ═══════════════════════ TABS ═══════════════════════ */
+    .tab-row {
+      display: flex; border: 1px solid var(--border-mid); width: fit-content;
+    }
+    .tab-btn {
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+      padding: .5em 1.1em;
+      border-right: 1px solid var(--border-mid);
+      background: var(--bg-s); color: var(--fg-mid); cursor: pointer;
+      transition: background .1s, color .1s;
+    }
+    .tab-btn:last-child { border-right: none; }
+    .tab-btn[aria-selected="true"] { background: var(--accent); color: var(--bg); }
+    .tab-panel { display: none; }
+    .tab-panel[aria-hidden="false"] { display: block; }
+    .tab-note { font-size: var(--fs-xs); color: var(--fg-dim); margin-top: .7rem; }
+    .tab-note a { color: var(--fg-dim); }
+    .tab-note a:hover { color: var(--accent); opacity: 1; }
+
+    /* ═══════════════════════ TERMINAL CODE BLOCKS ═══════════════════════ */
+    .term {
+      background: var(--bg-code); border: 1px solid var(--border-mid);
+      margin-block: 1rem;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .term:hover { border-color: var(--accent-b); box-shadow: var(--glow-sm); }
+    .term-bar {
+      display: flex; align-items: center; gap: .38em;
+      padding: .52em .85em;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-s);
+    }
+    .dot { width: .62em; height: .62em; border-radius: 50%; flex-shrink: 0; }
+    .dot-r { background: #ff5f57; }
+    .dot-y { background: #febc2e; }
+    .dot-g { background: #28c840; }
+    .term-lbl { flex: 1; font-size: var(--fs-xs); color: var(--fg-dim); letter-spacing: .05em; margin-left: .4em; }
+    .t-copy {
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--fg-dim); border: 1px solid var(--border-mid); padding: .22em .55em;
+      background: transparent;
+      transition: color .1s, border-color .1s;
+    }
+    .t-copy:hover { color: var(--accent); border-color: var(--accent-b); }
+    .term pre {
+      padding: 1.1rem 1.3rem;
+      overflow-x: auto;
+      font-size: var(--fs-sm); line-height: 1.9;
+    }
+    .c-dim    { color: var(--fg-dim); }
+    .c-acc    { color: var(--accent); }
+    .c-str    { color: #a8d8a8; }
+    .c-key    { color: #89b4fa; }
+    .c-num    { color: #fab387; }
+    .c-prompt { color: var(--accent); user-select: none; }
+    [data-theme="light"] .c-str { color: #2d6a2d; }
+    [data-theme="light"] .c-key { color: #1a56b0; }
+    [data-theme="light"] .c-num { color: #9a3b00; }
+
+    /* ═══════════════════════ QUICKSTART ═══════════════════════ */
+    .qs-item {
+      display: grid; grid-template-columns: 3.2rem 1fr;
+      gap: 1.25rem; padding-block: 1.85rem;
+      border-top: 1px solid var(--border);
+    }
+    .qs-item:last-child { border-bottom: 1px solid var(--border); }
+    .qs-num { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; color: var(--accent); padding-top: .1rem; }
+    .qs-title { font-size: var(--fs-h3); font-weight: 700; letter-spacing: -.01em; margin-bottom: .35rem; }
+    .qs-desc  { font-size: var(--fs-sm); color: var(--fg-mid); margin-bottom: .6rem; }
+    @media (max-width: 480px) { .qs-item { grid-template-columns: 1fr; gap: .35rem; } }
+
+    /* ═══════════════════════ FLAG TYPES ═══════════════════════ */
+    .ftypes-grid {
+      display: grid; grid-template-columns: repeat(2,1fr);
+      gap: 1px; background: var(--border); border: 1px solid var(--border);
+    }
+    @media (max-width: 560px) { .ftypes-grid { grid-template-columns: 1fr; } }
+    .ftype-card { background: var(--bg); padding: 1.5rem; transition: background .15s; }
+    .ftype-card:hover { background: var(--bg-card); }
+    .ftype-tag {
+      display: inline-block;
+      font-size: var(--fs-xs); font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+      padding: .24em .6em; margin-bottom: .75rem;
+      background: var(--accent-d); color: var(--accent); border: 1px solid var(--accent-b);
+    }
+    .ftype-title { font-size: var(--fs-sm); font-weight: 700; margin-bottom: .35rem; }
+    .ftype-desc  { font-size: var(--fs-xs); color: var(--fg-mid); line-height: 1.65; margin-bottom: .75rem; }
+    .ftype-ex    { font-size: var(--fs-xs); color: var(--fg-dim); background: var(--bg-code); border: 1px solid var(--border); padding: .55rem .75rem; overflow-x: auto; }
+    .ftype-ex code { color: var(--accent); }
+
+    /* ═══════════════════════ PLATFORMS ═══════════════════════ */
+    .platform-grid {
+      display: grid; grid-template-columns: repeat(5,1fr);
+      gap: 1px; background: var(--border); border: 1px solid var(--border);
+      margin-top: 2rem;
+    }
+    @media (max-width: 680px) { .platform-grid { grid-template-columns: repeat(3,1fr); } }
+    @media (max-width: 440px) { .platform-grid { grid-template-columns: 1fr 1fr; } }
+    .plat-cell { background: var(--bg-card); padding: 1.1rem 1.2rem; }
+    .plat-os   { font-size: var(--fs-xs); font-weight: 700; letter-spacing: -.005em; }
+    .plat-arch { font-size: var(--fs-xs); color: var(--fg-mid); margin-top: .2rem; }
+    .plat-ok   { font-size: var(--fs-xs); color: var(--accent); font-weight: 700; margin-top: .4rem; }
+
+    /* ═══════════════════════ API REFERENCE ═══════════════════════ */
+    .api-scroll { overflow-x: auto; }
+    .api-group { margin-bottom: 2rem; }
+    .api-grp-title {
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--accent); padding-bottom: .5em;
+      border-bottom: 1px solid var(--border); margin-bottom: 0;
+    }
+    .api-row {
+      display: grid; grid-template-columns: 5rem 1fr auto;
+      align-items: center; gap: .75rem 1rem;
+      padding: .65rem 0; border-bottom: 1px solid var(--border);
+      font-size: var(--fs-xs);
+    }
+    .method {
+      font-weight: 800; letter-spacing: .05em; text-align: center;
+      padding: .2em .35em; font-size: 10px;
+    }
+    .m-get    { color: #89b4fa; background: rgba(137,180,250,.09); }
+    .m-post   { color: #a6e3a1; background: rgba(166,227,161,.09); }
+    .m-put    { color: #fab387; background: rgba(250,179,135,.09); }
+    .m-patch  { color: #f9e2af; background: rgba(249,226,175,.09); }
+    .m-delete { color: #f38ba8; background: rgba(243,139,168,.09); }
+    [data-theme="light"] .m-get    { color: #1a56b0; background: rgba(26,86,176,.08); }
+    [data-theme="light"] .m-post   { color: #166534; background: rgba(22,101,52,.08); }
+    [data-theme="light"] .m-put    { color: #b45309; background: rgba(180,83,9,.08); }
+    [data-theme="light"] .m-patch  { color: #92400e; background: rgba(146,64,14,.08); }
+    [data-theme="light"] .m-delete { color: #991b1b; background: rgba(153,27,27,.08); }
+    .api-path { color: var(--fg); font-weight: 600; letter-spacing: -.005em; }
+    .api-desc { color: var(--fg-dim); text-align: right; white-space: nowrap; }
+    @media (max-width: 580px) { .api-row { grid-template-columns: 4.5rem 1fr; } .api-desc { display: none; } }
+
+    /* ═══════════════════════ COMPARISON ═══════════════════════ */
+    .cmp-wrap { margin-top: 2rem; overflow-x: auto; }
+    .cmp-table {
+      width: 100%; border-collapse: collapse;
+      font-size: var(--fs-xs); min-width: 520px;
+      border: 1px solid var(--border);
+    }
+    .cmp-table th, .cmp-table td {
+      padding: .85rem 1rem; text-align: left;
+      border: 1px solid var(--border);
+    }
+    .cmp-table thead th {
+      font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      background: var(--bg-s);
+    }
+    .cmp-table thead th:nth-child(2) { color: var(--accent); }
+    .cmp-table td:first-child { color: var(--fg-mid); font-weight: 600; }
+    .cmp-table .us   { color: var(--accent); font-weight: 700; }
+    .cmp-table .them { color: var(--fg-mid); }
+    .cmp-table tbody tr:hover td { background: var(--bg-s); }
+
+    /* ═══════════════════════ SECURITY ═══════════════════════ */
+    .sec-grid {
+      display: grid; grid-template-columns: repeat(2,1fr);
+      gap: 1px; background: var(--border); border: 1px solid var(--border);
+    }
+    @media (max-width: 520px) { .sec-grid { grid-template-columns: 1fr; } }
+    .sec-card { background: var(--bg-card); padding: 1.5rem; }
+    .sec-title { font-size: var(--fs-sm); font-weight: 800; margin-bottom: .4rem; }
+    .sec-body  { font-size: var(--fs-xs); color: var(--fg-mid); line-height: 1.7; }
+
+    /* ═══════════════════════ FOOTER ═══════════════════════ */
+    footer {
+      border-top: 1px solid var(--border);
+      padding-block: 3.5rem;
+      background: var(--bg-s);
+    }
+    .footer-inner { max-width: var(--max-w-wide); margin-inline: auto; padding-inline: 1.5rem; }
+    .footer-top {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      flex-wrap: wrap; gap: 2rem;
+      padding-bottom: 2rem; border-bottom: 1px solid var(--border);
+    }
+    .footer-brand { max-width: 300px; }
+    .footer-brand .wordmark { margin-bottom: .75rem; font-size: var(--fs-sm); }
+    .footer-tagline { font-size: var(--fs-xs); color: var(--fg-dim); line-height: 1.7; }
+    .footer-cols { display: flex; gap: 3rem; flex-wrap: wrap; }
+    .footer-col-title {
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--fg-mid); margin-bottom: .75rem;
+    }
+    .footer-links { display: flex; flex-direction: column; gap: .5rem; }
+    .footer-links a {
+      font-size: var(--fs-xs); color: var(--fg-dim); text-decoration: none;
+      letter-spacing: .03em; transition: color .1s;
+    }
+    .footer-links a:hover { color: var(--accent); opacity: 1; }
+    .footer-bottom {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 1rem; padding-top: 1.75rem;
+    }
+    .footer-copy { font-size: var(--fs-xs); color: var(--fg-dim); letter-spacing: .04em; }
+    .footer-stamp {
+      display: inline-flex; align-items: center; gap: .4em;
+      font-size: var(--fs-xs); font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--accent); border: 1px solid var(--accent-b); padding: .3em .7em;
+    }
+
+    /* ═══════════════════════ MOBILE ═══════════════════════ */
+    @media (max-width: 560px) {
+      .nav-link  { display: none; }
+      .nav-pill  { display: none; }
+      .hero-demo .demo-hint { display: none; }
+      .hero-stats { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════ NAV ════════════════════════════ -->
+<header>
+  <nav class="nav" aria-label="Site navigation">
+    <div class="nav-inner">
+      <a href="#" class="wordmark" aria-label="LaunchWhitely home">
+        <span class="wm-flag" id="wm-flag" data-on="true"><span class="wm-knob"></span></span>
+        LaunchWhitely
+      </a>
+      <div class="nav-right">
+        <a href="#install"    class="nav-link">Install</a>
+        <a href="#quickstart" class="nav-link">Quickstart</a>
+        <a href="#api"        class="nav-link">API</a>
+        <a href="https://github.com/sakshamred/Meth-v12"       class="nav-pill" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://npmjs.com/package/launchwhitely"      class="nav-pill" target="_blank" rel="noopener">npm</a>
+        <a href="https://crates.io/crates/launchwhitely"       class="nav-pill" target="_blank" rel="noopener">crates.io</a>
+        <button class="theme-btn" id="theme-toggle" aria-label="Toggle light/dark mode">◐</button>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<main>
+
+<!-- ════════════════════════════ HERO ════════════════════════════ -->
+<section class="hero" aria-labelledby="hero-h">
+  <div class="hero-grid" aria-hidden="true"></div>
+  <div class="hero-glow"  aria-hidden="true"></div>
+  <div class="wrap hero-content">
+
+    <div class="hero-stamp">
+      <span class="live-dot" aria-hidden="true"></span>
+      ■ 99.1% PURE &nbsp;·&nbsp; LOT // SQLITE-SSE &nbsp;·&nbsp; v0.1.0
+    </div>
+
+    <h1 class="hero-title" id="hero-h">
+      Feature flags.<br><span class="hl">99.1% pure.</span>
+    </h1>
+
+    <p class="hero-sub">
+      One Rust binary. SQLite on disk. Flags in memory. Changes over SSE.
+      No SaaS. No relay agents. No vendor negotiation at renewal.
+      Install it, serve it, own it.
+    </p>
+
+    <div class="hero-stats" aria-label="Key metrics">
+      <div class="stat-pill"><span class="stat-num">&lt;50ms</span><span class="stat-lbl">Startup</span></div>
+      <div class="stat-pill"><span class="stat-num">0</span><span class="stat-lbl">Cloud deps</span></div>
+      <div class="stat-pill"><span class="stat-num">1</span><span class="stat-lbl">Binary</span></div>
+      <div class="stat-pill"><span class="stat-num">10+</span><span class="stat-lbl">Operators</span></div>
+    </div>
+
+    <div class="hero-cmd" aria-label="Install via Cargo">
+      <code><span class="p">$</span> cargo install launchwhitely</code>
+      <button class="hero-cmd-copy t-copy" data-copy="cargo install launchwhitely" aria-label="Copy install command">COPY</button>
+    </div>
+
+    <div class="hero-actions">
+      <a href="#install"    class="btn btn--accent">Get it →</a>
+      <a href="#quickstart" class="btn btn--ghost">Quickstart</a>
+      <a href="https://github.com/sakshamred/Meth-v12" class="btn btn--ghost" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+
+    <div class="hero-demo" aria-label="Interactive flag demo">
+      <span class="flag-sw"
+            id="demo-sw"
+            role="switch"
+            aria-checked="false"
+            aria-label="Flag: new-checkout"
+            tabindex="0">
+        <span class="flag-knob"></span>
+      </span>
+      <div>
+        <div class="demo-key">FLAG // new-checkout</div>
+        <div class="demo-val off" id="demo-val" aria-live="polite">Disabled</div>
+      </div>
+      <span class="demo-hint">← toggle it</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════════════════════════════ MANIFESTO ════════════════════════════ -->
+<section class="section" id="why" aria-labelledby="why-h">
+  <div class="wrap">
+    <div class="section-head rv">
+      <div class="eyebrow">The problem</div>
+      <h2 class="section-title" id="why-h">You're renting a conditional.</h2>
+    </div>
+    <div class="manifesto-body">
+      <p class="rv rv-d1">
+        LaunchDarkly charges <strong>per seat, per environment, per MAU</strong>. Your flag
+        configuration lives on their servers. Their SDK phones home on every evaluation.
+        You are paying a recurring toll to execute an <strong>if-statement</strong>.
+      </p>
+      <p class="rv rv-d2">
+        Cloud flag services want you to run their relay agents, configure their webhooks,
+        trust their uptime SLA, and audit their changelog every time the API shifts.
+        You are not a customer — you are a dependency in their business model.
+      </p>
+      <p class="rv rv-d3">
+        Every flag you create teaches their system your product roadmap. Every evaluation
+        is a data point they didn't earn. And when their service degrades, your flags
+        return stale data because the source of truth is in their data center, not yours.
+      </p>
+      <div class="manifesto-quote rv rv-d4">
+        LaunchWhitely is a binary. It runs wherever you run things.
+        SQLite stores your flags on disk; memory serves them in nanoseconds.
+        Your flags. Your server. Your call.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════ STATS BAND ════════════════════════════ -->
+<div class="stats-band" role="region" aria-label="Key stats">
+  <div class="stats-band-inner">
+    <div class="big-stat rv"><span class="big-num">&lt;50ms</span><span class="big-lbl">Cold start</span></div>
+    <div class="big-stat rv rv-d1"><span class="big-num">0</span><span class="big-lbl">External deps</span></div>
+    <div class="big-stat rv rv-d2"><span class="big-num">10+</span><span class="big-lbl">Rule operators</span></div>
+    <div class="big-stat rv rv-d3"><span class="big-num">MIT</span><span class="big-lbl">License</span></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════ FEATURES ════════════════════════════ -->
+<section class="section" id="features" aria-labelledby="features-h">
+  <div class="wrap--wide">
+    <div class="section-head wrap rv">
+      <div class="eyebrow">What you get</div>
+      <h2 class="section-title" id="features-h">Everything you need.<br>Nothing you don't.</h2>
+    </div>
+    <div class="feat-grid" role="list">
+      <article class="feat-card rv"         role="listitem"><span class="feat-icon" aria-hidden="true">⬡</span><div class="feat-title">Single binary</div><p class="feat-body">One statically compiled Rust binary. Copy it to a server, run it. No runtime, no package manager on the host. Move it with <code>scp</code>.</p></article>
+      <article class="feat-card rv rv-d1"   role="listitem"><span class="feat-icon" aria-hidden="true">◈</span><div class="feat-title">SQLite-backed</div><p class="feat-body">All flags persist to an embedded SQLite file. One file you can inspect, back up with <code>cp</code>, or migrate with <code>rsync</code>.</p></article>
+      <article class="feat-card rv rv-d2"   role="listitem"><span class="feat-icon" aria-hidden="true">⇢</span><div class="feat-title">SSE real-time</div><p class="feat-body">Clients subscribe to flag changes over Server-Sent Events — plain HTTP. Updates reach connected clients in milliseconds. Standard <code>EventSource</code> API.</p></article>
+      <article class="feat-card rv rv-d3"   role="listitem"><span class="feat-icon" aria-hidden="true">◎</span><div class="feat-title">In-memory eval</div><p class="feat-body">All active flags live in memory. Evaluation is a hash lookup — no disk I/O, no network round-trip per request. SQLite is for durability; RAM is for serving.</p></article>
+      <article class="feat-card rv rv-d4"   role="listitem"><span class="feat-icon" aria-hidden="true">◈</span><div class="feat-title">Targeting rules</div><p class="feat-body">Match users by any attribute. 10+ operators: <code>in</code>, <code>contains</code>, <code>regex</code>, <code>semver</code>, <code>segment</code>. Deterministic percentage rollouts via XxHash64.</p></article>
+      <article class="feat-card rv rv-d5"   role="listitem"><span class="feat-icon" aria-hidden="true">⊞</span><div class="feat-title">Multiple envs</div><p class="feat-body">Production, staging, dev — each with independent flag configs, SDK keys, and rollout rules. One server, many environments.</p></article>
+      <article class="feat-card rv rv-d1"   role="listitem"><span class="feat-icon" aria-hidden="true">◑</span><div class="feat-title">Audit log</div><p class="feat-body">Every mutation logged with before/after snapshots. Query by flag key, environment, time range. Know exactly what changed and when.</p></article>
+      <article class="feat-card rv rv-d2"   role="listitem"><span class="feat-icon" aria-hidden="true">◻</span><div class="feat-title">Zero vendor</div><p class="feat-body">MIT license. Your data is a SQLite file you can read, copy, and delete. No API coupling, no SDK lock-in, no renewal negotiation.</p></article>
+      <article class="feat-card rv rv-d3"   role="listitem"><span class="feat-icon" aria-hidden="true">⬔</span><div class="feat-title">Multivariate flags</div><p class="feat-body">Boolean, string, number, and JSON variations. Gradual rollouts with weighted buckets that must sum to 100%. Same context key always gets the same variation.</p></article>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════ HOW IT WORKS ════════════════════════════ -->
+<section class="section" id="how" aria-labelledby="how-h">
+  <div class="wrap">
+    <div class="section-head rv">
+      <div class="eyebrow">Architecture</div>
+      <h2 class="section-title" id="how-h">How it works</h2>
+    </div>
+    <ul class="tech-list" role="list">
+      <li class="tech-item rv">
+        <span class="tech-term">Single binary</span>
+        <span class="tech-def">One statically compiled Rust binary with no runtime dependency. Copy to a server, run it. Starts in under 50ms. Relocate it with <code>scp</code>. Install via Cargo or npm — both deliver the same binary.</span>
+      </li>
+      <li class="tech-item rv rv-d1">
+        <span class="tech-term">SQLite-backed</span>
+        <span class="tech-def">Flags persist to an embedded SQLite file. No external database, no connection pool. The entire store is one file you can inspect with any SQLite browser, back up with <code>cp</code>, and migrate with <code>rsync</code>.</span>
+      </li>
+      <li class="tech-item rv rv-d2">
+        <span class="tech-term">SSE real-time</span>
+        <span class="tech-def">SDK clients subscribe over Server-Sent Events — plain HTTP, no WebSocket overhead, no polling interval. On connect: a full <code>put</code> snapshot. On change: incremental <code>patch</code> or <code>delete</code>. Keepalive comments every 15s.</span>
+      </li>
+      <li class="tech-item rv rv-d3">
+        <span class="tech-term">In-memory eval</span>
+        <span class="tech-def">All active flag configs load into memory at start and stay current via internal events. Evaluation is a hash lookup — zero DB queries per request, zero network latency. SQLite handles durability; RAM handles throughput.</span>
+      </li>
+      <li class="tech-item rv rv-d4">
+        <span class="tech-term">XxHash64 bucketing</span>
+        <span class="tech-def">Percentage rollouts use XxHash64 over <code>flagKey + salt + contextKey</code>. Same context key always gets the same variation — deterministic, consistent, and independent of clock or order.</span>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- ════════════════════════════ INSTALLATION ════════════════════════════ -->
+<section class="section" id="install" aria-labelledby="install-h">
+  <div class="wrap">
+    <div class="section-head rv">
+      <div class="eyebrow">Get it</div>
+      <h2 class="section-title" id="install-h">Installation</h2>
+      <p class="section-sub">Two package registries. One binary. Pick your install method.</p>
+    </div>
+
+    <!-- package cards -->
+    <div class="pkg-grid rv">
+      <div class="pkg-card">
+        <span class="pkg-badge pkg-badge--cargo">◈ Cargo / crates.io</span>
+        <div class="pkg-name">launchwhitely</div>
+        <div class="pkg-meta">
+          <span class="tag">v0.1.0</span>
+          <span>MIT OR Apache-2.0</span>
+          <span>Rust stable</span>
+        </div>
+        <div class="pkg-tags">
+          <span class="pkg-tag">feature-flags</span>
+          <span class="pkg-tag">feature-toggles</span>
+          <span class="pkg-tag">self-hosted</span>
+          <span class="pkg-tag">sse</span>
+        </div>
+        <a href="https://crates.io/crates/launchwhitely" class="pkg-link" target="_blank" rel="noopener">crates.io ↗</a>
+        <a href="https://github.com/sakshamred/Meth-v12" class="pkg-link" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+      <div class="pkg-card">
+        <span class="pkg-badge pkg-badge--npm">◉ npm</span>
+        <div class="pkg-name">launchwhitely</div>
+        <div class="pkg-meta">
+          <span class="tag">v0.1.0</span>
+          <span>MIT OR Apache-2.0</span>
+          <span>Node ≥ 16</span>
+        </div>
+        <div class="pkg-tags">
+          <span class="pkg-tag">feature-flags</span>
+          <span class="pkg-tag">self-hosted</span>
+          <span class="pkg-tag">launchdarkly-alternative</span>
+          <span class="pkg-tag">sse</span>
+        </div>
+        <a href="https://npmjs.com/package/launchwhitely" class="pkg-link" target="_blank" rel="noopener">npmjs.com ↗</a>
+        <a href="https://github.com/sakshamred/Meth-v12" class="pkg-link" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </div>
+
+    <!-- tabs -->
+    <div class="rv rv-d1">
+      <div class="tab-row" role="tablist" aria-label="Installation methods">
+        <button class="tab-btn" role="tab" aria-selected="true"  aria-controls="tab-cargo" id="btn-cargo">Cargo</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-npm"   id="btn-npm">npm</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-npx"   id="btn-npx">npx</button>
+        <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-curl"  id="btn-curl">curl</button>
+      </div>
+
+      <div id="tab-cargo" role="tabpanel" aria-labelledby="btn-cargo" aria-hidden="false" class="tab-panel">
+        <div class="term">
+          <div class="term-bar">
+            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+            <span class="term-lbl">bash — cargo</span>
+            <button class="t-copy" data-copy="cargo install launchwhitely">COPY</button>
+          </div>
+          <pre><code><span class="c-dim"># build and install from crates.io</span>
+<span class="c-prompt">$</span> <span class="c-acc">cargo install launchwhitely</span>
+
+<span class="c-dim"># start the server</span>
+<span class="c-prompt">$</span> launchwhitely serve</code></pre>
+        </div>
+        <p class="tab-note">Requires the Rust toolchain. <a href="https://rustup.rs" target="_blank" rel="noopener">Install via rustup.rs</a> if you don't have it yet. Builds the binary from <a href="https://crates.io/crates/launchwhitely" target="_blank" rel="noopener">crates.io</a>.</p>
+      </div>
+
+      <div id="tab-npm" role="tabpanel" aria-labelledby="btn-npm" aria-hidden="true" class="tab-panel">
+        <div class="term">
+          <div class="term-bar">
+            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+            <span class="term-lbl">bash — npm</span>
+            <button class="t-copy" data-copy="npm install -g launchwhitely">COPY</button>
+          </div>
+          <pre><code><span class="c-dim"># install globally — downloads a pre-built binary</span>
+<span class="c-prompt">$</span> <span class="c-acc">npm install -g launchwhitely</span>
+
+<span class="c-dim"># start the server</span>
+<span class="c-prompt">$</span> launchwhitely serve</code></pre>
+        </div>
+        <p class="tab-note">No Rust toolchain required. Downloads a pre-built binary for your platform. Node ≥ 16. Published at <a href="https://npmjs.com/package/launchwhitely" target="_blank" rel="noopener">npmjs.com/package/launchwhitely</a>.</p>
+      </div>
+
+      <div id="tab-npx" role="tabpanel" aria-labelledby="btn-npx" aria-hidden="true" class="tab-panel">
+        <div class="term">
+          <div class="term-bar">
+            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+            <span class="term-lbl">bash — npx</span>
+            <button class="t-copy" data-copy="npx launchwhitely@latest serve">COPY</button>
+          </div>
+          <pre><code><span class="c-dim"># no install — run the latest release directly</span>
+<span class="c-prompt">$</span> <span class="c-acc">npx launchwhitely@latest serve</span></code></pre>
+        </div>
+        <p class="tab-note">Great for CI pipelines and first-look evaluation. Downloads and caches on first run. No global install needed.</p>
+      </div>
+
+      <div id="tab-curl" role="tabpanel" aria-labelledby="btn-curl" aria-hidden="true" class="tab-panel">
+        <div class="term">
+          <div class="term-bar">
+            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+            <span class="term-lbl">bash — curl</span>
+            <button class="t-copy" data-copy="curl -fsSL https://launchwhitely.dev/install.sh | sh">COPY</button>
+          </div>
+          <pre><code><span class="c-dim"># download and install (Linux &amp; macOS)</span>
+<span class="c-prompt">$</span> <span class="c-acc">curl -fsSL https://launchwhitely.dev/install.sh | sh</span>
+
+<span class="c-dim"># start the server</span>
+<span class="c-prompt">$</span> launchwhitely serve</code></pre>
+        </div>
+        <p class="tab-note">Installs to <code>~/.local/bin</code>. Set <code>LAUNCHWHITELY_INSTALL_DIR</code> to override, <code>LAUNCHWHITELY_VERSION</code> to pin a version. Review the script at <code>/install.sh</code> before piping to sh.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════ QUICKSTART ════════════════════════════ -->
+<section class="section" id="quickstart" aria-labelledby="qs-h">
+  <div class="wrap">
+    <div class="section-head rv">
+      <div class="eyebrow">Quickstart</div>
+      <h2 class="section-title" id="qs-h">Zero to flags in 60 seconds</h2>
+    </div>
+    <ol role="list">
+      <li class="qs-item rv">
+        <span class="qs-num">01</span>
+        <div>
+          <h3 class="qs-title">Start the server</h3>
+          <div class="term">
+            <div class="term-bar"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span><span class="term-lbl">bash</span><button class="t-copy" data-copy="launchwhitely serve">COPY</button></div>
+            <pre><code><span class="c-prompt">$</span> launchwhitely serve
+<span class="c-dim">Listening  → http://localhost:7777
+Database   → ./launchwhitely.db  (created on first run)
+SSE stream → http://localhost:7777/api/sdk/stream</span>
+
+<span class="c-dim">╔══════════════════════════════════════════════════════════╗
+║   LaunchWhitely — Initial Admin Key Created              ║
+╠══════════════════════════════════════════════════════════╣
+║  Save this key — it will NOT be shown again.             ║
+║  Raw Key: lw_&lt;64-hex-chars&gt;                              ║
+╚══════════════════════════════════════════════════════════╝</span></code></pre>
+          </div>
+        </div>
+      </li>
+      <li class="qs-item rv rv-d1">
+        <span class="qs-num">02</span>
+        <div>
+          <h3 class="qs-title">Create an environment &amp; flag</h3>
+          <div class="term">
+            <div class="term-bar"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span><span class="term-lbl">bash</span><button class="t-copy" data-copy='export ADMIN_KEY="lw_..."'>COPY</button></div>
+            <pre><code><span class="c-prompt">$</span> export ADMIN_KEY=<span class="c-str">"lw_&lt;paste-key-here&gt;"</span>
+
+<span class="c-dim"># create an environment</span>
+<span class="c-prompt">$</span> curl -sSf http://localhost:7777/api/envs \
+    -H <span class="c-str">"Authorization: Bearer $ADMIN_KEY"</span> \
+    -H <span class="c-str">'Content-Type: application/json'</span> \
+    -d <span class="c-str">'{"key":"production","name":"Production"}'</span>
+
+<span class="c-dim"># create a boolean flag</span>
+<span class="c-prompt">$</span> curl -sSf http://localhost:7777/api/flags \
+    -H <span class="c-str">"Authorization: Bearer $ADMIN_KEY"</span> \
+    -H <span class="c-str">'Content-Type: application/json'</span> \
+    -d <span class="c-str">'{"key":"dark-mode","kind":"bool","variations":[false,true]}'</span></code></pre>
+          </div>
+        </div>
+      </li>
+      <li class="qs-item rv rv-d2">
+        <span class="qs-num">03</span>
+        <div>
+          <h3 class="qs-title">Enable the flag &amp; create an SDK key</h3>
+          <div class="term">
+            <div class="term-bar"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span><span class="term-lbl">bash</span><button class="t-copy" data-copy="">COPY</button></div>
+            <pre><code><span class="c-dim"># enable in production</span>
+<span class="c-prompt">$</span> curl -sSf -X PATCH http://localhost:7777/api/envs/production/flags/dark-mode/toggle \
+    -H <span class="c-str">"Authorization: Bearer $ADMIN_KEY"</span> \
+    -d <span class="c-str">'{"enabled":true}'</span>
+
+<span class="c-dim"># create a read-only SDK key scoped to production</span>
+<span class="c-prompt">$</span> curl -sSf http://localhost:7777/api/keys \
+    -H <span class="c-str">"Authorization: Bearer $ADMIN_KEY"</span> \
+    -d <span class="c-str">'{"role":"sdk","env_key":"production","name":"my-app"}'</span>
+
+<span class="c-prompt">$</span> export SDK_KEY=<span class="c-str">"lw_&lt;paste-sdk-key&gt;"</span></code></pre>
+          </div>
+        </div>
+      </li>
+      <li class="qs-item rv rv-d3">
+        <span class="qs-num">04</span>
+        <div>
+          <h3 class="qs-title">Evaluate a flag for a user</h3>
+          <div class="term">
+            <div class="term-bar"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span><span class="term-lbl">bash</span><button class="t-copy" data-copy="">COPY</button></div>
+            <pre><code><span class="c-prompt">$</span> curl -sSf http://localhost:7777/api/eval \
+    -H <span class="c-str">"Authorization: Bearer $SDK_KEY"</span> \
+    -d <span class="c-str">'{"context":{"key":"user-123","attributes":{"plan":"pro"}},"flag_key":"dark-mode"}'</span>
+<span class="c-dim">← {"flag_key":"dark-mode","variation":1,"value":true}</span></code></pre>
+          </div>
+        </div>
+      </li>
+      <li class="qs-item rv rv-d4">
+        <span class="qs-num">05</span>
+        <div>
+          <h3 class="qs-title">Subscribe to real-time changes</h3>
+          <p class="qs-desc">Keep a connection open. Clients receive flag updates the instant they're written.</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span><span class="term-lbl">bash — SSE</span><button class="t-copy" data-copy="curl -sSf http://localhost:7777/api/sdk/stream -H &quot;Authorization: Bearer $SDK_KEY&quot; -H &quot;Accept: text/event-stream&quot;">COPY</button></div>
+            <pre><code><span class="c-prompt">$</span> curl -sSf http://localhost:7777/api/sdk/stream \
+    -H <span class="c-str">"Authorization: Bearer $SDK_KEY"</span> \
+    -H <span class="c-str">"Accept: text/event-stream"</span>
+
+event: <span class="c-acc">put</span>
+data: <span class="c-dim">{"type":"put","data":{"env_key":"production","flags":[...],"configs":[...]}}</span>
+
+event: <span class="c-acc">patch</span>
+data: <span class="c-dim">{"type":"patch","flag_key":"dark-mode","data":{...updated config...}}</span>
+
+event: <span class="c-acc">delete</span>
+data: <span class="c-dim">{"type":"delete","flag_key":"old-flag"}</span></code></pre>
+          </div>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ════════════════════════════ FLAG TYPES ════════════════════════════ -->
+<section class="section" id="flag-types" aria-labelledby="ft-h">
+  <div class="wrap">
+    <div class="section-head rv">
+      <div class="eyebrow">Flag types</div>
+      <h2 class="section-title" id="ft-h">Four kinds of flag</h2>
+      <p class="section-sub">Boolean, string, number, and JSON variations — with weighted rollouts and targeting rules on all of them.</p>
+    </div>
+    <div class="ftypes-grid">
+      <div class="ftype-card rv">
+        <span class="ftype-tag">bool</span>
+        <div class="ftype-title">Boolean</div>
+        <p class="ftype-desc">On/off switches. The classic feature flag. Use for enabling or disabling features per environment or targeting rule.</p>
+        <pre class="ftype-ex"><code>"variations": [false, true]</code></pre>
+      </div>
+      <div class="ftype-card rv rv-d1">
+        <span class="ftype-tag">string</span>
+        <div class="ftype-title">String</div>
+        <p class="ftype-desc">Serve different text values per user. Config strings, A/B copy, UI labels — anything a string can hold.</p>
+        <pre class="ftype-ex"><code>"variations": ["control", "treatment-a", "treatment-b"]</code></pre>
+      </div>
+      <div class="ftype-card rv rv-d2">
+        <span class="ftype-tag">number</span>
+        <div class="ftype-title">Number</div>
+        <p class="ftype-desc">Rate limits, timeouts, thresholds — any numeric value you'd otherwise hardcode in config. Change it without a deploy.</p>
+        <pre class="ftype-ex"><code>"variations": [100, 500, 1000]</code></pre>
+      </div>
+      <div class="ftype-card rv rv-d3">
+        <span class="ftype-tag">json</span>
+        <div class="ftype-title">JSON</div>
+        <p class="ftype-desc">Serve arbitrary structured data — entire feature config objects, pricing tiers, UI themes. Any valid JSON object.</p>
+        <pre class="ftype-ex"><code>"variations": [{"theme":"default"}, {"theme":"dark","accentColor":"#00ff88"}]</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════ PLATFORM SUPPORT ════════════════════════════ -->
+<section class="section" id="platforms" aria-labelledby="plat-h">
+  <div class="wrap">
+    <div class="section-head rv">
+      <div class="eyebrow">Platform support</div>
+      <h2 class="section-title" id="plat-h">Pre-built for your platform</h2>
+      <p class="section-sub">The npm package ships a pre-built binary for every supported target. No Rust toolchain required when installing via npm or npx.</p>
+    </div>
+    <div class="platform-grid rv">
+      <div class="plat-cell"><div class="plat-os">Linux</div><div class="plat-arch">x86_64</div><div class="plat-ok">✓ Supported</div></div>
+      <div class="plat-cell"><div class="plat-os">Linux</div><div class="plat-arch">arm64 (aarch64)</div><div class="plat-ok">✓ Supported</div></div>
+      <div class="plat-cell"><div class="plat-os">macOS</div><div class="plat-arch">x86_64 (Intel)</div><div class="plat-ok">✓ Supported</div></div>
+      <div class="plat-cell"><div class="plat-os">macOS</div><div class="plat-arch">arm64 (M-series)</div><div class="plat-ok">✓ Supported</div></div>
+      <div class="plat-cell"><div class="plat-os">Windows</div><div class="plat-arch">x86_64</div><div class="plat-ok">✓ Supported</div></div>
+    </div>
+    <div style="margin-top:1.75rem;" class="rv rv-d1">
+      <div class="term">
+        <div class="term-bar"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span><span class="term-lbl">Release archive names</span></div>
+        <pre><code><span class="c-dim">Linux x64   →</span>  <span class="c-acc">launchwhitely-x86_64-unknown-linux-gnu.tar.gz</span>
+<span class="c-dim">Linux arm64 →</span>  <span class="c-acc">launchwhitely-aarch64-unknown-linux-gnu.tar.gz</span>
+<span class="c-dim">macOS x64   →</span>  <span class="c-acc">launchwhitely-x86_64-apple-darwin.tar.gz</span>
+<span class="c-dim">macOS arm64 →</span>  <span class="c-acc">launchwhitely-aarch64-apple-darwin.tar.gz</span>
+<span class="c-dim">Windows x64 →</span>  <span class="c-acc">launchwhitely-x86_64-pc-windows-msvc.zip</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════ API REFERENCE ════════════════════════════ -->
+<section class="section" id="api" aria-labelledby="api-h">
+  <div class="wrap--wide">
+    <div class="section-head wrap rv">
+      <div class="eyebrow">HTTP API</div>
+      <h2 class="section-title" id="api-h">REST API reference</h2>
+      <p class="section-sub">All endpoints require <code>Authorization: Bearer &lt;key&gt;</code>. Admin key = full access. SDK key = read-only eval endpoints.</p>
+    </div>
+    <div class="api-scroll wrap rv rv-d1">
+
+      <div class="api-group">
+        <div class="api-grp-title">// Flags</div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/flags</span><span class="api-desc">List all flags</span></div>
+        <div class="api-row"><span class="method m-post">POST</span><span class="api-path">/api/flags</span><span class="api-desc">Create flag</span></div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/flags/:key</span><span class="api-desc">Get flag</span></div>
+        <div class="api-row"><span class="method m-put">PUT</span><span class="api-path">/api/flags/:key</span><span class="api-desc">Update flag</span></div>
+        <div class="api-row"><span class="method m-delete">DELETE</span><span class="api-path">/api/flags/:key</span><span class="api-desc">Delete flag</span></div>
+        <div class="api-row"><span class="method m-put">PUT</span><span class="api-path">/api/envs/:env/flags/:key/config</span><span class="api-desc">Set full env config</span></div>
+        <div class="api-row"><span class="method m-patch">PATCH</span><span class="api-path">/api/envs/:env/flags/:key/toggle</span><span class="api-desc">Enable / disable</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-grp-title">// Environments</div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/envs</span><span class="api-desc">List environments</span></div>
+        <div class="api-row"><span class="method m-post">POST</span><span class="api-path">/api/envs</span><span class="api-desc">Create environment</span></div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/envs/:key</span><span class="api-desc">Get environment</span></div>
+        <div class="api-row"><span class="method m-delete">DELETE</span><span class="api-path">/api/envs/:key</span><span class="api-desc">Delete environment</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-grp-title">// Segments</div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/envs/:env/segments</span><span class="api-desc">List segments</span></div>
+        <div class="api-row"><span class="method m-post">POST</span><span class="api-path">/api/envs/:env/segments</span><span class="api-desc">Create segment</span></div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/envs/:env/segments/:key</span><span class="api-desc">Get segment</span></div>
+        <div class="api-row"><span class="method m-put">PUT</span><span class="api-path">/api/envs/:env/segments/:key</span><span class="api-desc">Update segment</span></div>
+        <div class="api-row"><span class="method m-delete">DELETE</span><span class="api-path">/api/envs/:env/segments/:key</span><span class="api-desc">Delete segment</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-grp-title">// API Keys</div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/keys</span><span class="api-desc">List keys</span></div>
+        <div class="api-row"><span class="method m-post">POST</span><span class="api-path">/api/keys</span><span class="api-desc">Create key</span></div>
+        <div class="api-row"><span class="method m-delete">DELETE</span><span class="api-path">/api/keys/:id</span><span class="api-desc">Revoke key</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-grp-title">// SDK / Eval</div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/sdk/flags</span><span class="api-desc">Full ruleset snapshot</span></div>
+        <div class="api-row"><span class="method m-post">POST</span><span class="api-path">/api/eval</span><span class="api-desc">Evaluate flags for context</span></div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/sdk/stream</span><span class="api-desc">SSE stream of flag changes</span></div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/health</span><span class="api-desc">Health check (no auth)</span></div>
+      </div>
+
+      <div class="api-group">
+        <div class="api-grp-title">// Audit</div>
+        <div class="api-row"><span class="method m-get">GET</span><span class="api-path">/api/audit</span><span class="api-desc">List audit entries (?flag_key=&amp;env_key=&amp;limit=&amp;offset=)</span></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════ CLI REFERENCE ════════════════════════════ -->
+<section class="section" id="cli" aria-labelledby="cli-h">
+  <div class="wrap">
+    <div class="section-head rv">
+      <div class="eyebrow">CLI</div>
+      <h2 class="section-title" id="cli-h">CLI reference</h2>
+    </div>
+    <div class="term rv">
+      <div class="term-bar"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span><span class="term-lbl">launchwhitely — full command reference</span><button class="t-copy" data-copy="launchwhitely --help">COPY</button></div>
+      <pre><code><span class="c-dim"># — Server ────────────────────────────────────────────────────────────────</span>
+<span class="c-acc">launchwhitely serve</span>
+    --db   &lt;PATH&gt;   SQLite database path    [default: launchwhitely.db]
+    --port &lt;PORT&gt;   HTTP port               [default: 7777]
+    --host &lt;HOST&gt;   Bind host               [default: 0.0.0.0]
+    --log  &lt;LEVEL&gt;  trace|debug|info|warn|error [default: info]
+
+<span class="c-dim"># — Migrations ────────────────────────────────────────────────────────────</span>
+<span class="c-acc">launchwhitely migrate</span> --db &lt;PATH&gt;
+
+<span class="c-dim"># — API Keys ──────────────────────────────────────────────────────────────</span>
+<span class="c-acc">launchwhitely key create</span> --role &lt;admin|sdk&gt; [--env &lt;ENV_KEY&gt;] --name &lt;NAME&gt; --db &lt;PATH&gt;
+<span class="c-acc">launchwhitely key list</span>   --db &lt;PATH&gt;
+<span class="c-acc">launchwhitely key revoke</span> --id &lt;KEY_ID&gt; --db &lt;PATH&gt;
+
+<span class="c-dim"># — Environments ──────────────────────────────────────────────────────────</span>
+<span class="c-acc">launchwhitely env create</span> --key &lt;KEY&gt; --name &lt;NAME&gt; --db &lt;PATH&gt;
+<span class="c-acc">launchwhitely env list</span>   --db &lt;PATH&gt;
+
+<span class="c-dim"># — Flags ─────────────────────────────────────────────────────────────────</span>
+<span class="c-acc">launchwhitely flag create</span> --key &lt;KEY&gt; --kind &lt;bool|string|number|json&gt; [--description &lt;DESC&gt;] --db &lt;PATH&gt;
+<span class="c-acc">launchwhitely flag list</span>   --db &lt;PATH&gt;
+<span class="c-acc">launchwhitely flag get</span>    --key &lt;KEY&gt; --db &lt;PATH&gt;
+<span class="c-acc">launchwhitely flag toggle</span> --key &lt;KEY&gt; --env &lt;ENV_KEY&gt; --enabled &lt;true|false&gt; --db &lt;PATH&gt;</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════ COMPARISON ════════════════════════════ -->
+<section class="section" id="compare" aria-labelledby="cmp-h">
+  <div class="wrap--wide">
+    <div class="section-head wrap rv">
+      <div class="eyebrow">vs. the incumbent</div>
+      <h2 class="section-title" id="cmp-h">LaunchWhitely vs LaunchDarkly</h2>
+    </div>
+    <div class="cmp-wrap wrap rv rv-d1">
+      <table class="cmp-table">
+        <thead>
+          <tr>
+            <th scope="col"> </th>
+            <th scope="col">LaunchWhitely</th>
+            <th scope="col">LaunchDarkly</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Infrastructure</td><td class="us">Single binary</td><td class="them">Cloud service + relay proxy agents</td></tr>
+          <tr><td>Database</td><td class="us">Embedded SQLite — yours</td><td class="them">Proprietary — you don't see it</td></tr>
+          <tr><td>Real-time</td><td class="us">SSE — plain HTTP, no SDK needed</td><td class="them">Proprietary streaming SDK</td></tr>
+          <tr><td>Hosting</td><td class="us">Your server, your control</td><td class="them">SaaS — their uptime is your uptime</td></tr>
+          <tr><td>Pricing</td><td class="us">Free, open-source (MIT)</td><td class="them">Per-seat + per-env + per-MAU</td></tr>
+          <tr><td>Data residency</td><td class="us">Your machine</td><td class="them">Their cloud (US-East by default)</td></tr>
+          <tr><td>Vendor lock-in</td><td class="us">None — data is a SQLite file</td><td class="them">API + SDK tightly coupled to service</td></tr>
+          <tr><td>Offline operation</td><td class="us">Always on (in-memory cache)</td><td class="them">Degraded if cloud unreachable</td></tr>
+          <tr><td>Cold start</td><td class="us">&lt; 50ms</td><td class="them">SLA-dependent</td></tr>
+          <tr><td>License</td><td class="us">MIT OR Apache-2.0</td><td class="them">Proprietary</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════ SECURITY ════════════════════════════ -->
+<section class="section" id="security" aria-labelledby="sec-h">
+  <div class="wrap">
+    <div class="section-head rv">
+      <div class="eyebrow">Security</div>
+      <h2 class="section-title" id="sec-h">Built for the paranoid</h2>
+      <p class="section-sub">Rate limiting, TLS, and network isolation are your reverse-proxy's job (nginx, Caddy, etc.).</p>
+    </div>
+    <div class="sec-grid rv rv-d1">
+      <div class="sec-card">
+        <div class="sec-title">Hashed key storage</div>
+        <p class="sec-body">API keys are stored as <code>sha256(raw_key)</code>. Raw key material is never persisted to disk. If the database is exfiltrated, keys are still safe.</p>
+      </div>
+      <div class="sec-card">
+        <div class="sec-title">Constant-time comparison</div>
+        <p class="sec-body">Auth uses constant-time comparison to prevent timing attacks during key validation. No early exits in the comparison loop.</p>
+      </div>
+      <div class="sec-card">
+        <div class="sec-title">Zero DB queries per eval</div>
+        <p class="sec-body">Flag evaluation reads only from in-memory state. The database is never touched during a flag check — zero surface area for SQL injection on eval paths.</p>
+      </div>
+      <div class="sec-card">
+        <div class="sec-title">Scoped SDK keys</div>
+        <p class="sec-body">SDK keys are read-only and scoped to a single environment. They cannot write, create, or delete. Admin keys required for any mutation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ════════════════════════════ FOOTER ════════════════════════════ -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="#" class="wordmark" aria-label="LaunchWhitely home">
+          <span class="wm-flag" data-on="true"><span class="wm-knob"></span></span>
+          LaunchWhitely
+        </a>
+        <p class="footer-tagline">
+          A self-hostable feature flag server. Single Rust binary. SQLite. SSE.
+          Zero cloud dependencies. MIT license.
+        </p>
+      </div>
+      <div class="footer-cols">
+        <div>
+          <div class="footer-col-title">Registry</div>
+          <ul class="footer-links">
+            <li><a href="https://crates.io/crates/launchwhitely" target="_blank" rel="noopener">crates.io — launchwhitely</a></li>
+            <li><a href="https://npmjs.com/package/launchwhitely" target="_blank" rel="noopener">npm — launchwhitely</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Source</div>
+          <ul class="footer-links">
+            <li><a href="https://github.com/sakshamred/Meth-v12" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://github.com/sakshamred/Meth-v12/issues" target="_blank" rel="noopener">Issues</a></li>
+            <li><a href="https://github.com/sakshamred/Meth-v12/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Docs</div>
+          <ul class="footer-links">
+            <li><a href="#install">Installation</a></li>
+            <li><a href="#quickstart">Quickstart</a></li>
+            <li><a href="#api">API Reference</a></li>
+            <li><a href="#cli">CLI Reference</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span class="footer-copy">© 2025 LaunchWhitely · MIT OR Apache-2.0 · Self-host everything.</span>
+      <span class="footer-stamp"><span class="live-dot" aria-hidden="true"></span> 99.1% PURE</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Theme ── */
+  var html = document.documentElement;
+  var themeBtn = document.getElementById('theme-toggle');
+  var isDark = html.getAttribute('data-theme') !== 'light';
+
+  function applyTheme(dark) {
+    html.setAttribute('data-theme', dark ? 'dark' : 'light');
+    if (themeBtn) themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      isDark = !isDark;
+      localStorage.setItem('lw-theme', isDark ? 'dark' : 'light');
+      applyTheme(isDark);
+    });
+  }
+
+  /* ── Wordmark flag toggle ── */
+  document.querySelectorAll('.wm-flag').forEach(function (el) {
+    el.addEventListener('click', function () {
+      var cur = this.getAttribute('data-on') === 'true';
+      this.setAttribute('data-on', String(!cur));
+    });
+  });
+
+  /* ── Demo toggle ── */
+  var demoSw  = document.getElementById('demo-sw');
+  var demoVal = document.getElementById('demo-val');
+  function makeSwitch(sw, onChange) {
+    if (!sw) return;
+    sw.addEventListener('click', function () {
+      var next = this.getAttribute('aria-checked') !== 'true';
+      this.setAttribute('aria-checked', String(next));
+      if (onChange) onChange(next);
+    });
+    sw.addEventListener('keydown', function (e) {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); this.click(); }
+    });
+  }
+  makeSwitch(demoSw, function (on) {
+    if (!demoVal) return;
+    demoVal.textContent = on ? 'Enabled' : 'Disabled';
+    demoVal.className   = 'demo-val ' + (on ? 'on' : 'off');
+  });
+
+  /* ── Copy buttons ── */
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = btn.getAttribute('data-copy');
+      if (!text) return;
+      try {
+        navigator.clipboard.writeText(text).then(function () {
+          var orig = btn.textContent;
+          btn.textContent = 'COPIED!';
+          setTimeout(function () { btn.textContent = orig; }, 1500);
+        });
+      } catch (e) { /* insecure context */ }
+    });
+  });
+
+  /* ── Install tabs ── */
+  var tabBtns = Array.prototype.slice.call(document.querySelectorAll('.tab-btn[role="tab"]'));
+  tabBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      tabBtns.forEach(function (b) { b.setAttribute('aria-selected', 'false'); });
+      document.querySelectorAll('.tab-panel').forEach(function (p) { p.setAttribute('aria-hidden', 'true'); });
+      btn.setAttribute('aria-selected', 'true');
+      var panel = document.getElementById(btn.getAttribute('aria-controls'));
+      if (panel) panel.setAttribute('aria-hidden', 'false');
+    });
+  });
+  var tabRow = document.querySelector('.tab-row[role="tablist"]');
+  if (tabRow) {
+    tabRow.addEventListener('keydown', function (e) {
+      var idx = tabBtns.indexOf(document.activeElement);
+      if (idx === -1) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); var n = tabBtns[(idx+1)%tabBtns.length]; n.focus(); n.click(); }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); var p = tabBtns[(idx-1+tabBtns.length)%tabBtns.length]; p.focus(); p.click(); }
+    });
+  }
+
+  /* ── Scroll reveal ── */
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
+    document.querySelectorAll('.rv').forEach(function (el) { io.observe(el); });
+  } else {
+    document.querySelectorAll('.rv').forEach(function (el) { el.classList.add('in'); });
+  }
+
+}());
+</script>
+</body>
+</html>
