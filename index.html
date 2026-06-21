@@ -181,6 +181,8 @@
       text-decoration: none; color: var(--fg); flex-shrink: 0;
     }
     .wordmark:hover { opacity: .7; }
+    .wordmark .wm-flag { cursor: pointer; }
+    .wordmark .wm-flag:hover { border-color: var(--accent); box-shadow: var(--glow-sm); }
     .wm-flag {
       display: inline-block; width: 1.7em; height: .95em;
       border: 1.5px solid var(--accent); position: relative;
@@ -211,16 +213,6 @@
       transition: color .12s, border-color .12s, box-shadow .12s;
     }
     .nav-pill:hover { color: var(--accent); border-color: var(--accent-b); box-shadow: var(--glow-sm); opacity: 1; }
-
-    .theme-btn {
-      display: flex; align-items: center; justify-content: center;
-      width: 2.1rem; height: 2.1rem;
-      border: 1px solid var(--border-mid); color: var(--fg-mid);
-      font-size: .95rem;
-      transition: color .12s, border-color .12s, box-shadow .12s;
-      flex-shrink: 0;
-    }
-    .theme-btn:hover { color: var(--accent); border-color: var(--accent-b); box-shadow: var(--glow-sm); }
 
     /* ═══════════════════════ HERO ═══════════════════════ */
     .hero {
@@ -412,7 +404,7 @@
     }
     .stats-band-inner {
       max-width: var(--max-w-wide); margin-inline: auto; padding-inline: 1.5rem;
-      display: grid; grid-template-columns: repeat(4, 1fr);
+      display: grid; grid-template-columns: repeat(3, 1fr);
     }
     .big-stat {
       padding: 1.5rem 2rem;
@@ -432,9 +424,9 @@
       color: var(--fg-mid);
     }
     @media (max-width: 640px) {
-      .stats-band-inner { grid-template-columns: 1fr 1fr; }
-      .big-stat:nth-child(2) { border-right: none; }
-      .big-stat:nth-child(3),.big-stat:nth-child(4) { border-top: 1px solid var(--border); }
+      .stats-band-inner { grid-template-columns: 1fr; }
+      .big-stat { border-right: none; border-top: 1px solid var(--border); }
+      .big-stat:first-child { border-top: none; }
     }
 
     /* ═══════════════════════ FEATURES GRID ═══════════════════════ */
@@ -735,7 +727,6 @@
         <a href="https://github.com/sakshamred/Meth-v12"       class="nav-pill" target="_blank" rel="noopener">GitHub</a>
         <a href="https://npmjs.com/package/launchwhitely"      class="nav-pill" target="_blank" rel="noopener">npm</a>
         <a href="https://crates.io/crates/launchwhitely"       class="nav-pill" target="_blank" rel="noopener">crates.io</a>
-        <button class="theme-btn" id="theme-toggle" aria-label="Toggle light/dark mode">◐</button>
       </div>
     </div>
   </nav>
@@ -839,7 +830,6 @@
     <div class="big-stat rv"><span class="big-num">&lt;50ms</span><span class="big-lbl">Cold start</span></div>
     <div class="big-stat rv rv-d1"><span class="big-num">0</span><span class="big-lbl">External deps</span></div>
     <div class="big-stat rv rv-d2"><span class="big-num">10+</span><span class="big-lbl">Rule operators</span></div>
-    <div class="big-stat rv rv-d3"><span class="big-num">MIT</span><span class="big-lbl">License</span></div>
   </div>
 </div>
 
@@ -858,7 +848,7 @@
       <article class="feat-card rv rv-d4"   role="listitem"><span class="feat-icon" aria-hidden="true">◈</span><div class="feat-title">Targeting rules</div><p class="feat-body">Match users by any attribute. 10+ operators: <code>in</code>, <code>contains</code>, <code>regex</code>, <code>semver</code>, <code>segment</code>. Deterministic percentage rollouts via XxHash64.</p></article>
       <article class="feat-card rv rv-d5"   role="listitem"><span class="feat-icon" aria-hidden="true">⊞</span><div class="feat-title">Multiple envs</div><p class="feat-body">Production, staging, dev — each with independent flag configs, SDK keys, and rollout rules. One server, many environments.</p></article>
       <article class="feat-card rv rv-d1"   role="listitem"><span class="feat-icon" aria-hidden="true">◑</span><div class="feat-title">Audit log</div><p class="feat-body">Every mutation logged with before/after snapshots. Query by flag key, environment, time range. Know exactly what changed and when.</p></article>
-      <article class="feat-card rv rv-d2"   role="listitem"><span class="feat-icon" aria-hidden="true">◻</span><div class="feat-title">Zero vendor</div><p class="feat-body">MIT license. Your data is a SQLite file you can read, copy, and delete. No API coupling, no SDK lock-in, no renewal negotiation.</p></article>
+      <article class="feat-card rv rv-d2"   role="listitem"><span class="feat-icon" aria-hidden="true">◻</span><div class="feat-title">Zero vendor</div><p class="feat-body">Your data is a SQLite file you can read, copy, and delete. No API coupling, no SDK lock-in, no renewal negotiation.</p></article>
       <article class="feat-card rv rv-d3"   role="listitem"><span class="feat-icon" aria-hidden="true">⬔</span><div class="feat-title">Multivariate flags</div><p class="feat-body">Boolean, string, number, and JSON variations. Gradual rollouts with weighted buckets that must sum to 100%. Same context key always gets the same variation.</p></article>
     </div>
   </div>
@@ -912,7 +902,6 @@
         <div class="pkg-name">launchwhitely</div>
         <div class="pkg-meta">
           <span class="tag">v0.1.0</span>
-          <span>MIT OR Apache-2.0</span>
           <span>Rust stable</span>
         </div>
         <div class="pkg-tags">
@@ -929,7 +918,6 @@
         <div class="pkg-name">launchwhitely</div>
         <div class="pkg-meta">
           <span class="tag">v0.1.0</span>
-          <span>MIT OR Apache-2.0</span>
           <span>Node ≥ 16</span>
         </div>
         <div class="pkg-tags">
@@ -1315,7 +1303,6 @@ data: <span class="c-dim">{"type":"delete","flag_key":"old-flag"}</span></code><
           <tr><td>Vendor lock-in</td><td class="us">None — data is a SQLite file</td><td class="them">API + SDK tightly coupled to service</td></tr>
           <tr><td>Offline operation</td><td class="us">Always on (in-memory cache)</td><td class="them">Degraded if cloud unreachable</td></tr>
           <tr><td>Cold start</td><td class="us">&lt; 50ms</td><td class="them">SLA-dependent</td></tr>
-          <tr><td>License</td><td class="us">MIT OR Apache-2.0</td><td class="them">Proprietary</td></tr>
         </tbody>
       </table>
     </div>
@@ -1364,7 +1351,7 @@ data: <span class="c-dim">{"type":"delete","flag_key":"old-flag"}</span></code><
         </a>
         <p class="footer-tagline">
           A self-hostable feature flag server. Single Rust binary. SQLite. SSE.
-          Zero cloud dependencies. MIT license.
+          Zero cloud dependencies.
         </p>
       </div>
       <div class="footer-cols">
@@ -1380,7 +1367,6 @@ data: <span class="c-dim">{"type":"delete","flag_key":"old-flag"}</span></code><
           <ul class="footer-links">
             <li><a href="https://github.com/sakshamred/Meth-v12" target="_blank" rel="noopener">GitHub</a></li>
             <li><a href="https://github.com/sakshamred/Meth-v12/issues" target="_blank" rel="noopener">Issues</a></li>
-            <li><a href="https://github.com/sakshamred/Meth-v12/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
           </ul>
         </div>
         <div>
@@ -1395,7 +1381,7 @@ data: <span class="c-dim">{"type":"delete","flag_key":"old-flag"}</span></code><
       </div>
     </div>
     <div class="footer-bottom">
-      <span class="footer-copy">© 2025 LaunchWhitely · MIT OR Apache-2.0 · Self-host everything.</span>
+      <span class="footer-copy">© 2025 LaunchWhitely · Self-host everything.</span>
       <span class="footer-stamp"><span class="live-dot" aria-hidden="true"></span> 99.1% PURE</span>
     </div>
   </div>
@@ -1407,29 +1393,37 @@ data: <span class="c-dim">{"type":"delete","flag_key":"old-flag"}</span></code><
 
   /* ── Theme ── */
   var html = document.documentElement;
-  var themeBtn = document.getElementById('theme-toggle');
   var isDark = html.getAttribute('data-theme') !== 'light';
 
   function applyTheme(dark) {
     html.setAttribute('data-theme', dark ? 'dark' : 'light');
-    if (themeBtn) themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    document.querySelectorAll('.wm-flag').forEach(function (el) {
+      el.setAttribute('data-on', dark ? 'true' : 'false');
+    });
   }
 
-  if (themeBtn) {
-    themeBtn.addEventListener('click', function () {
+  /* sync initial state */
+  applyTheme(isDark);
+
+  /* ── Wordmark flag = theme toggle ── */
+  var navWmFlag = document.querySelector('.nav .wm-flag');
+  if (navWmFlag) {
+    navWmFlag.setAttribute('role', 'switch');
+    navWmFlag.setAttribute('aria-checked', String(isDark));
+    navWmFlag.setAttribute('aria-label', 'Toggle light/dark mode');
+    navWmFlag.setAttribute('tabindex', '0');
+    navWmFlag.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
       isDark = !isDark;
       localStorage.setItem('lw-theme', isDark ? 'dark' : 'light');
       applyTheme(isDark);
+      navWmFlag.setAttribute('aria-checked', String(isDark));
+    });
+    navWmFlag.addEventListener('keydown', function (e) {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); this.click(); }
     });
   }
-
-  /* ── Wordmark flag toggle ── */
-  document.querySelectorAll('.wm-flag').forEach(function (el) {
-    el.addEventListener('click', function () {
-      var cur = this.getAttribute('data-on') === 'true';
-      this.setAttribute('data-on', String(!cur));
-    });
-  });
 
   /* ── Demo toggle ── */
   var demoSw  = document.getElementById('demo-sw');
